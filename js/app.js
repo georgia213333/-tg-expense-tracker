@@ -3,6 +3,7 @@ const CATEGORIES = [
   { id: "restaurants", label: "Рестораны", icon: "🍽" },
   { id: "delivery", label: "Доставка", icon: "🛵" },
   { id: "transport", label: "Транспорт", icon: "🚕" },
+  { id: "fuel", label: "АЗС", icon: "⛽" },
   { id: "home", label: "Жильё", icon: "🏠" },
   { id: "fun", label: "Развлечения", icon: "🎮" },
   { id: "health", label: "Здоровье", icon: "💊" },
