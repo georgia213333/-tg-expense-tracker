@@ -1,5 +1,7 @@
 const CATEGORIES = [
-  { id: "food", label: "Еда", icon: "🍔" },
+  { id: "groceries", label: "Продукты", icon: "🛒" },
+  { id: "restaurants", label: "Рестораны", icon: "🍽" },
+  { id: "delivery", label: "Доставка", icon: "🛵" },
   { id: "transport", label: "Транспорт", icon: "🚕" },
   { id: "home", label: "Жильё", icon: "🏠" },
   { id: "fun", label: "Развлечения", icon: "🎮" },
