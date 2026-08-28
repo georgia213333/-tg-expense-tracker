@@ -27,6 +27,21 @@ const CATEGORY_LABELS = {
   other: "Прочее",
 };
 
+const CATEGORY_ICONS = {
+  groceries: "🛒",
+  restaurants: "🍽",
+  delivery: "🛵",
+  transport: "🚕",
+  fuel: "⛽",
+  home: "🏠",
+  fun: "🎮",
+  health: "💊",
+  shopping: "🛍",
+  other: "✨",
+};
+
+const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS);
+
 function parseExpenseText(text) {
   const amountMatch = text.match(/(\d+(?:[.,]\d+)?)/);
   if (!amountMatch) return null;
@@ -56,17 +71,77 @@ function todayInTbilisi() {
   return shifted.toISOString().slice(0, 10);
 }
 
-async function sendMessage(chatId, text) {
-  await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+function categoryKeyboard(expenseId) {
+  const buttons = CATEGORY_ORDER.map((id) => ({
+    text: `${CATEGORY_ICONS[id]} ${CATEGORY_LABELS[id]}`,
+    callback_data: `cat:${expenseId}:${id}`,
+  }));
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2));
+  }
+  return { inline_keyboard: rows };
+}
+
+function confirmationText(expense) {
+  return `✅ Записано: ${expense.amount} ${expense.currency} · ${CATEGORY_LABELS[expense.category]}\n\nНе та категория? Тапни нужную:`;
+}
+
+async function telegramApi(method, payload) {
+  const res = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+async function sendMessage(chatId, text, replyMarkup) {
+  return telegramApi("sendMessage", {
+    chat_id: chatId,
+    text,
+    reply_markup: replyMarkup,
   });
 }
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(200).send("ok");
+    return;
+  }
+
+  const callback = req.body?.callback_query;
+  if (callback) {
+    const [, expenseId, categoryId] = callback.data.split(":");
+
+    const { data: expense, error } = await supabase
+      .from("expenses")
+      .update({ category: categoryId })
+      .eq("id", expenseId)
+      .select()
+      .single();
+
+    if (error || !expense) {
+      await telegramApi("answerCallbackQuery", {
+        callback_query_id: callback.id,
+        text: "Не получилось изменить категорию",
+      });
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    await telegramApi("answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: `Изменено на: ${CATEGORY_LABELS[categoryId]}`,
+    });
+
+    await telegramApi("editMessageText", {
+      chat_id: callback.message.chat.id,
+      message_id: callback.message.message_id,
+      text: `✅ Записано: ${expense.amount} ${expense.currency} · ${CATEGORY_LABELS[categoryId]}`,
+    });
+
+    res.status(200).json({ ok: true });
     return;
   }
 
@@ -82,7 +157,7 @@ module.exports = async function handler(req, res) {
   if (text === "/start") {
     await sendMessage(
       chatId,
-      "Привет! Пиши траты в свободной форме, например:\n\n12 лари кофе\n\nВалюта не обязательна — по умолчанию лари. Открыть полное приложение — кнопка меню внизу."
+      "Привет! Пиши траты в свободной форме, например:\n\n12 лари кофе\n\nВалюта не обязательна — по умолчанию лари. Если категория окажется неправильной — под сообщением будут кнопки, чтобы поправить. Открыть полное приложение — кнопка меню внизу."
     );
     res.status(200).json({ ok: true });
     return;
@@ -95,14 +170,18 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { error } = await supabase.from("expenses").insert({
-    telegram_user_id: message.from.id,
-    amount: parsed.amount,
-    currency: parsed.currency,
-    category: parsed.category,
-    date: todayInTbilisi(),
-    note: parsed.note || null,
-  });
+  const { data: expense, error } = await supabase
+    .from("expenses")
+    .insert({
+      telegram_user_id: message.from.id,
+      amount: parsed.amount,
+      currency: parsed.currency,
+      category: parsed.category,
+      date: todayInTbilisi(),
+      note: parsed.note || null,
+    })
+    .select()
+    .single();
 
   if (error) {
     await sendMessage(chatId, "Не получилось сохранить трату, попробуй ещё раз.");
@@ -110,9 +189,6 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  await sendMessage(
-    chatId,
-    `✅ Записано: ${parsed.amount} ${parsed.currency} · ${CATEGORY_LABELS[parsed.category]}`
-  );
+  await sendMessage(chatId, confirmationText(expense), categoryKeyboard(expense.id));
   res.status(200).json({ ok: true });
 };
