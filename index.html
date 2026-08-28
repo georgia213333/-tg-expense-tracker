@@ -21,9 +21,9 @@
   </header>
 
   <div class="period-tabs">
-    <button class="period-tab" data-period="week">Нед</button>
-    <button class="period-tab active" data-period="month">Мес</button>
-    <button class="period-tab" data-period="year">Год</button>
+    <button class="period-tab" data-period="week" data-i18n="tab_week">Нед</button>
+    <button class="period-tab active" data-period="month" data-i18n="tab_month">Мес</button>
+    <button class="period-tab" data-period="year" data-i18n="tab_year">Год</button>
   </div>
 
   <div class="period-nav">
@@ -45,7 +45,7 @@
   <div class="category-pills" id="category-pills"></div>
 
   <div class="entries-block">
-    <h2 class="block-title">Последние траты</h2>
+    <h2 class="block-title" data-i18n="recent_expenses">Последние траты</h2>
     <div id="entries-list" class="entries-list"></div>
   </div>
 
@@ -73,29 +73,38 @@
 <div id="settings-screen" class="screen hidden">
   <header class="topbar">
     <button id="settings-back" class="nav-btn">←</button>
-    <div class="topbar__title">Настройки</div>
+    <div class="topbar__title" data-i18n="settings_title">Настройки</div>
     <span class="nav-spacer"></span>
   </header>
 
   <div class="field">
-    <label>Имя</label>
-    <input id="settings-name" type="text" placeholder="Как к тебе обращаться">
+    <label data-i18n="name_label">Имя</label>
+    <input id="settings-name" type="text" placeholder="Как к тебе обращаться" data-i18n-placeholder="name_placeholder">
   </div>
 
   <div class="field">
-    <label>Начальный экран</label>
+    <label data-i18n="start_screen_label">Начальный экран</label>
     <div class="period-tabs" id="settings-start-screen">
-      <button class="period-tab" data-value="overview">Обзор</button>
-      <button class="period-tab" data-value="calendar">Календарь</button>
+      <button class="period-tab" data-value="overview" data-i18n="start_overview">Обзор</button>
+      <button class="period-tab" data-value="calendar" data-i18n="start_calendar">Календарь</button>
     </div>
   </div>
 
   <div class="field">
-    <label>Тема</label>
+    <label data-i18n="theme_label">Тема</label>
     <div class="period-tabs" id="settings-theme">
-      <button class="period-tab" data-value="auto">Авто</button>
-      <button class="period-tab" data-value="dark">Тёмная</button>
-      <button class="period-tab" data-value="light">Светлая</button>
+      <button class="period-tab" data-value="auto" data-i18n="theme_auto">Авто</button>
+      <button class="period-tab" data-value="dark" data-i18n="theme_dark">Тёмная</button>
+      <button class="period-tab" data-value="light" data-i18n="theme_light">Светлая</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label data-i18n="language_label">Язык</label>
+    <div class="period-tabs" id="settings-language">
+      <button class="period-tab" data-value="ru">RU</button>
+      <button class="period-tab" data-value="en">EN</button>
+      <button class="period-tab" data-value="uk">UK</button>
     </div>
   </div>
 
@@ -104,64 +113,65 @@
 <div id="map-screen" class="screen hidden">
   <header class="topbar">
     <button id="map-back" class="nav-btn">←</button>
-    <div class="topbar__title">Карта сообщества</div>
+    <div class="topbar__title" data-i18n="map_title">Карта сообщества</div>
     <div class="map-lang">
       <button class="map-lang-btn" data-lang="ru">RU</button>
       <button class="map-lang-btn" data-lang="en">EN</button>
+      <button class="map-lang-btn" data-lang="uk">UK</button>
       <button class="map-lang-btn" data-lang="ka">KA</button>
     </div>
   </header>
   <div id="map-container"></div>
-  <p class="map-hint">Места, которыми поделились пользователи — цена усреднена по всем отметкам</p>
+  <p class="map-hint" data-i18n="map_hint">Места, которыми поделились пользователи — цена усреднена по всем отметкам</p>
 </div>
 
 <button id="fab-add" class="fab">+</button>
 
 <div id="add-overlay" class="overlay hidden">
   <div class="sheet">
-    <h2>Новая трата</h2>
+    <h2 data-i18n="new_expense">Новая трата</h2>
 
     <div class="field">
-      <label>Сумма</label>
+      <label data-i18n="amount_label">Сумма</label>
       <input id="input-amount" type="number" inputmode="decimal" placeholder="0.00" step="0.01">
     </div>
 
     <div class="field-row">
       <div class="field">
-        <label>Валюта</label>
+        <label data-i18n="currency_label">Валюта</label>
         <select id="input-currency"></select>
       </div>
       <div class="field">
-        <label>Дата</label>
+        <label data-i18n="date_label">Дата</label>
         <input id="input-date" type="date">
       </div>
     </div>
 
     <div class="field">
-      <label>Категория</label>
+      <label data-i18n="category_label">Категория</label>
       <div id="category-picker" class="category-picker"></div>
     </div>
 
     <div class="field">
-      <label>Заметка (необязательно)</label>
-      <input id="input-note" type="text" placeholder="Например: обед в кафе">
+      <label data-i18n="note_label">Заметка (необязательно)</label>
+      <input id="input-note" type="text" placeholder="Например: обед в кафе" data-i18n-placeholder="note_placeholder">
     </div>
 
     <div class="field">
-      <label>Место (необязательно)</label>
-      <input id="input-place" type="text" placeholder="Название кафе/магазина">
+      <label data-i18n="place_label">Место (необязательно)</label>
+      <input id="input-place" type="text" placeholder="Название кафе/магазина" data-i18n-placeholder="place_placeholder">
     </div>
 
     <div class="share-row">
       <label class="share-toggle">
         <input id="input-share" type="checkbox">
-        <span>📍 Поделиться местом с картой сообщества</span>
+        <span data-i18n="share_label">📍 Поделиться местом с картой сообщества</span>
       </label>
     </div>
 
     <div class="sheet-actions">
-      <button id="cancel-add" class="btn btn--ghost">Отмена</button>
-      <button id="confirm-add" class="btn btn--primary">Добавить</button>
+      <button id="cancel-add" class="btn btn--ghost" data-i18n="cancel">Отмена</button>
+      <button id="confirm-add" class="btn btn--primary" data-i18n="add">Добавить</button>
     </div>
   </div>
 </div>
@@ -169,6 +179,7 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

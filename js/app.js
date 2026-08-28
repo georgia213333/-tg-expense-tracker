@@ -1,26 +1,6 @@
-const CATEGORIES = [
-  { id: "groceries", label: "Продукты", icon: "🛒", color: "#f2a65a" },
-  { id: "restaurants", label: "Рестораны", icon: "🍽", color: "#e85d75" },
-  { id: "delivery", label: "Доставка", icon: "🛵", color: "#f7d060" },
-  { id: "transport", label: "Транспорт", icon: "🚕", color: "#6fcf97" },
-  { id: "fuel", label: "АЗС", icon: "⛽", color: "#56ccf2" },
-  { id: "home", label: "Жильё", icon: "🏠", color: "#bb86fc" },
-  { id: "fun", label: "Развлечения", icon: "🎮", color: "#ff8c69" },
-  { id: "health", label: "Здоровье", icon: "💊", color: "#4dd0e1" },
-  { id: "shopping", label: "Покупки", icon: "🛍", color: "#ffb74d" },
-  { id: "other", label: "Прочее", icon: "✨", color: "#9aa0a6" },
-];
-
-const CATEGORY_ORDER = CATEGORIES.map((c) => c.id);
-const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.label]));
-const CATEGORY_ICON = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.icon]));
-const CATEGORY_COLOR = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.color]));
-
-const CURRENCIES = ["GEL", "USD", "THB", "EUR"];
-const CURRENCY_SYMBOLS = { GEL: "₾", USD: "$", THB: "฿", EUR: "€" };
-const FALLBACK_RATES_USD = { USD: 1, GEL: 2.7, THB: 34, EUR: 0.92 };
-const MONTH_NAMES = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
-const DOW = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+const CURRENCIES = ["GEL", "USD", "THB", "EUR", "RUB", "UAH"];
+const CURRENCY_SYMBOLS = { GEL: "₾", USD: "$", THB: "฿", EUR: "€", RUB: "₽", UAH: "₴" };
+const FALLBACK_RATES_USD = { USD: 1, GEL: 2.7, THB: 34, EUR: 0.92, RUB: 86, UAH: 44 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const SUPABASE_URL = "https://ajygagwlupjmbffayeir.supabase.co";
@@ -47,7 +27,7 @@ let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
 let calendarSelectedDate = null;
 let baseCurrency = localStorage.getItem("base_currency") || "USD";
 let ratesUSD = { ...FALLBACK_RATES_USD };
-let formCategory = CATEGORIES[0].id;
+let formCategory = CATEGORY_META[0].id;
 
 async function loadEntries() {
   const { data, error } = await supabaseClient
@@ -63,11 +43,11 @@ async function loadEntries() {
 
 async function fetchRates() {
   try {
-    const symbols = CURRENCIES.filter((c) => c !== "USD").join(",");
-    const res = await fetch(`https://api.frankfurter.dev/v1/latest?base=USD&symbols=${symbols}`);
+    const res = await fetch("https://open.er-api.com/v6/latest/USD");
     if (!res.ok) return;
     const data = await res.json();
-    ratesUSD = { USD: 1, ...FALLBACK_RATES_USD, ...data.rates };
+    if (data.result !== "success") return;
+    ratesUSD = { ...FALLBACK_RATES_USD, ...data.rates };
   } catch {
     // офлайн / нет сети — остаёмся на фолбэк-курсах
   }
@@ -131,13 +111,14 @@ function renderPeriodLabel() {
     const { start, end } = getPeriodRange("week", periodAnchor);
     const [, sm, sd] = start.split("-");
     const [, em, ed] = end.split("-");
+    const names = monthNames();
     label.textContent =
       sm === em
-        ? `${sd}–${ed} ${MONTH_NAMES[Number(sm) - 1].slice(0, 3)}`
-        : `${sd} ${MONTH_NAMES[Number(sm) - 1].slice(0, 3)} – ${ed} ${MONTH_NAMES[Number(em) - 1].slice(0, 3)}`;
+        ? `${sd}–${ed} ${names[Number(sm) - 1].slice(0, 3)}`
+        : `${sd} ${names[Number(sm) - 1].slice(0, 3)} – ${ed} ${names[Number(em) - 1].slice(0, 3)}`;
     return;
   }
-  label.textContent = `${MONTH_NAMES[periodAnchor.getMonth()]} ${periodAnchor.getFullYear()}`;
+  label.textContent = `${monthNames()[periodAnchor.getMonth()]} ${periodAnchor.getFullYear()}`;
 }
 
 function periodTotals() {
@@ -172,7 +153,7 @@ function renderDonut(totals, grandTotal) {
   svg.appendChild(track);
 
   if (grandTotal === 0) {
-    centerLabel.textContent = "Нет трат за этот период";
+    centerLabel.textContent = t("no_expenses_period");
     return;
   }
 
@@ -201,15 +182,7 @@ function renderDonut(totals, grandTotal) {
   });
 
   const count = periodTotals().periodEntries.length;
-  centerLabel.textContent = `${count} ${pluralizeTrata(count)}`;
-}
-
-function pluralizeTrata(n) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "трата";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "траты";
-  return "трат";
+  centerLabel.textContent = `${count} ${pluralize(count, t("expense_forms"))}`;
 }
 
 function renderCategoryPills(totals) {
@@ -217,7 +190,7 @@ function renderCategoryPills(totals) {
   const cats = CATEGORY_ORDER.filter((id) => totals[id]).sort((a, b) => totals[b] - totals[a]);
 
   if (!cats.length) {
-    wrap.innerHTML = '<div class="empty-hint">Пока нет трат за этот период</div>';
+    wrap.innerHTML = `<div class="empty-hint">${t("no_expenses_hint")}</div>`;
     return;
   }
 
@@ -226,7 +199,7 @@ function renderCategoryPills(totals) {
       (id) => `
     <div class="pill">
       <span class="pill__icon" style="background:${CATEGORY_COLOR[id]}33;color:${CATEGORY_COLOR[id]}">${CATEGORY_ICON[id]}</span>
-      <span class="pill__label">${CATEGORY_LABEL[id]}</span>
+      <span class="pill__label">${categoryLabel(id)}</span>
       <span class="pill__amount">${formatMoney(totals[id], baseCurrency)}</span>
     </div>`
     )
@@ -238,7 +211,7 @@ function entryRowHtml(e) {
     <div class="entry">
       <div class="entry__icon">${CATEGORY_ICON[e.category] || "✨"}</div>
       <div class="entry__body">
-        <div class="entry__category">${CATEGORY_LABEL[e.category] || "Прочее"}</div>
+        <div class="entry__category">${categoryLabel(e.category)}</div>
         ${e.note ? `<div class="entry__note">${escapeHtml(e.note)}</div>` : ""}
       </div>
       <div class="entry__amount">${formatMoney(e.amount, e.currency)}</div>
@@ -266,7 +239,7 @@ function renderPeriodEntries(periodEntries) {
   const items = periodEntries.slice().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
   if (!items.length) {
-    list.innerHTML = '<div class="empty-hint">Ничего не найдено</div>';
+    list.innerHTML = `<div class="empty-hint">${t("nothing_found")}</div>`;
     return;
   }
 
@@ -298,7 +271,7 @@ function renderCalendarGrid() {
   const cal = document.getElementById("calendar");
   cal.innerHTML = "";
 
-  DOW.forEach((d) => {
+  dowNames().forEach((d) => {
     const el = document.createElement("div");
     el.className = "cal-dow";
     el.textContent = d;
@@ -347,15 +320,15 @@ function renderCalendarEntriesList() {
 
   if (calendarSelectedDate) {
     items = items.filter((e) => e.date === calendarSelectedDate);
-    title.textContent = "Траты за " + calendarSelectedDate.split("-").reverse().join(".");
+    title.textContent = t("expenses_for") + " " + calendarSelectedDate.split("-").reverse().join(".");
   } else {
-    title.textContent = "Все траты за месяц";
+    title.textContent = t("all_month_expenses");
   }
 
   items = items.slice().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
   if (!items.length) {
-    list.innerHTML = '<div class="empty-hint">Ничего не найдено</div>';
+    list.innerHTML = `<div class="empty-hint">${t("nothing_found")}</div>`;
     return;
   }
 
@@ -365,7 +338,7 @@ function renderCalendarEntriesList() {
 
 function renderCalendarScreen() {
   document.getElementById("calendar-month-label").textContent =
-    `${MONTH_NAMES[calendarMonth.getMonth()]} ${calendarMonth.getFullYear()}`;
+    `${monthNames()[calendarMonth.getMonth()]} ${calendarMonth.getFullYear()}`;
   renderCalendarGrid();
   renderCalendarEntriesList();
 }
@@ -438,10 +411,10 @@ function setupCurrencySelects() {
 function setupCategoryPicker() {
   const picker = document.getElementById("category-picker");
   picker.innerHTML = "";
-  CATEGORIES.forEach((c) => {
+  CATEGORY_META.forEach((c) => {
     const chip = document.createElement("div");
     chip.className = "category-chip" + (c.id === formCategory ? " active" : "");
-    chip.textContent = `${c.icon} ${c.label}`;
+    chip.textContent = `${c.icon} ${categoryLabel(c.id)}`;
     chip.addEventListener("click", () => {
       formCategory = c.id;
       picker.querySelectorAll(".category-chip").forEach((el) => el.classList.remove("active"));
@@ -458,7 +431,7 @@ function openAddSheet() {
   document.getElementById("input-share").checked = false;
   document.getElementById("input-date").value = dateKey(new Date());
   document.getElementById("input-currency").value = baseCurrency;
-  formCategory = CATEGORIES[0].id;
+  formCategory = CATEGORY_META[0].id;
   setupCategoryPicker();
   document.getElementById("add-overlay").classList.remove("hidden");
 }
@@ -504,7 +477,7 @@ async function confirmAdd() {
       lng = location.lng;
       sharedToMap = true;
     } else {
-      alert("Не удалось получить геолокацию — трата сохранится без метки на карте");
+      alert(t("geo_failed"));
     }
   }
 
@@ -577,7 +550,7 @@ function applyTheme(theme) {
   }
 }
 
-let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false, language: "ru" };
+let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false, language: "ru", map_language: "ru" };
 
 async function loadSettings() {
   const { data } = await supabaseClient
@@ -591,7 +564,8 @@ async function loadSettings() {
       start_screen: "overview",
       theme: "auto",
       is_premium: false,
-      language: detectLanguage(),
+      language: detectInterfaceLanguage(),
+      map_language: detectMapLanguage(),
     }
   );
 }
@@ -603,6 +577,7 @@ async function saveSettings() {
     start_screen: settings.start_screen,
     theme: settings.theme,
     language: settings.language,
+    map_language: settings.map_language,
   });
 }
 
@@ -623,14 +598,14 @@ function renderPremiumSection() {
 async function buyPremium() {
   const tg = window.Telegram?.WebApp;
   if (!tg?.openInvoice) {
-    alert("Оплата доступна только внутри Telegram");
+    alert(t("payment_telegram_only"));
     return;
   }
 
   const res = await fetch("/api/create-invoice", { method: "POST" });
   const data = await res.json();
   if (!data.link) {
-    alert("Не получилось создать счёт на оплату");
+    alert(t("invoice_failed"));
     return;
   }
 
@@ -643,9 +618,9 @@ async function buyPremium() {
 }
 
 function exportCsv() {
-  const rows = [["Дата", "Категория", "Сумма", "Валюта", "Заметка"]];
+  const rows = [[t("date_label"), t("category_label"), t("amount_label"), t("currency_label"), t("note_label")]];
   entries.forEach((e) => {
-    rows.push([e.date, CATEGORY_LABEL[e.category] || e.category, e.amount, e.currency, e.note || ""]);
+    rows.push([e.date, categoryLabel(e.category), e.amount, e.currency, e.note || ""]);
   });
   const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -659,8 +634,8 @@ function exportCsv() {
 
 function renderHeaderTitle() {
   document.getElementById("header-title").textContent = settings.display_name
-    ? `Привет, ${settings.display_name}`
-    : "Расходы";
+    ? `${t("greeting_prefix")}, ${settings.display_name}`
+    : t("app_title");
 }
 
 function setSegmentedValue(containerId, value) {
@@ -674,6 +649,7 @@ function setupSettingsScreen() {
     document.getElementById("settings-name").value = settings.display_name || "";
     setSegmentedValue("settings-start-screen", settings.start_screen);
     setSegmentedValue("settings-theme", settings.theme);
+    setSegmentedValue("settings-language", settings.language);
     document.getElementById("settings-screen").classList.remove("hidden");
   });
 
@@ -703,6 +679,20 @@ function setupSettingsScreen() {
       await saveSettings();
     });
   });
+
+  document.querySelectorAll("#settings-language .period-tab").forEach((btn) => {
+    btn.addEventListener("click", () => setLanguage(btn.dataset.value));
+  });
+}
+
+async function setLanguage(lang) {
+  settings.language = lang;
+  setSegmentedValue("settings-language", lang);
+  applyI18nStatic();
+  setupCategoryPicker();
+  renderHeaderTitle();
+  renderAll();
+  await saveSettings();
 }
 
 async function loadSharedPins() {
@@ -739,12 +729,6 @@ function clusterPins(pins) {
 
 const MAPTILER_KEY = "ot16oiPSCsaqLbDZr4Ty";
 
-function detectLanguage() {
-  const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
-  if (tgLang && ["ru", "en", "ka"].includes(tgLang)) return tgLang;
-  return "ru";
-}
-
 function applyMapLanguage(map, lang) {
   const style = map.getStyle();
   if (!style?.layers) return;
@@ -769,9 +753,9 @@ async function renderMapScreen() {
       zoom: 7,
     });
     mapInstance.addControl(new maplibregl.NavigationControl(), "top-left");
-    mapInstance.on("load", () => applyMapLanguage(mapInstance, settings.language));
+    mapInstance.on("load", () => applyMapLanguage(mapInstance, settings.map_language));
   } else {
-    applyMapLanguage(mapInstance, settings.language);
+    applyMapLanguage(mapInstance, settings.map_language);
   }
 
   mapMarkers.forEach((m) => m.remove());
@@ -784,7 +768,7 @@ async function renderMapScreen() {
     el.innerHTML = `<span>${CATEGORY_ICON[p.category] || ""}</span>`;
 
     const popup = new maplibregl.Popup({ offset: 20 }).setHTML(
-      `<b>${CATEGORY_ICON[p.category] || ""} ${escapeHtml(p.name)}</b><br>${formatMoney(p.avg, baseCurrency)} · ${p.count} ${p.count === 1 ? "отметка" : "отметок"}`
+      `<b>${CATEGORY_ICON[p.category] || ""} ${escapeHtml(p.name)}</b><br>${formatMoney(p.avg, baseCurrency)} · ${p.count} ${pluralize(p.count, t("mark_forms"))}`
     );
 
     const marker = new maplibregl.Marker({ element: el })
@@ -798,7 +782,7 @@ async function renderMapScreen() {
 }
 
 function setMapLanguage(lang) {
-  settings.language = lang;
+  settings.map_language = lang;
   document.querySelectorAll(".map-lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === lang));
   if (mapInstance) applyMapLanguage(mapInstance, lang);
   saveSettings();
@@ -807,7 +791,7 @@ function setMapLanguage(lang) {
 function setupMapScreen() {
   document.getElementById("open-map").addEventListener("click", async () => {
     document.getElementById("map-screen").classList.remove("hidden");
-    setMapLanguage(settings.language);
+    setMapLanguage(settings.map_language);
     await renderMapScreen();
   });
   document.getElementById("map-back").addEventListener("click", () => {
@@ -834,9 +818,11 @@ async function init() {
     loadSettings(),
   ]);
   settings = loadedSettings;
-  settings.language = settings.language || detectLanguage();
+  settings.language = settings.language || detectInterfaceLanguage();
+  settings.map_language = settings.map_language || detectMapLanguage();
 
   applyTheme(settings.theme);
+  applyI18nStatic();
   renderHeaderTitle();
   renderAll();
 
