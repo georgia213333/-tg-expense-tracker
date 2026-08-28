@@ -610,3 +610,51 @@ body {
   margin-left: auto;
   margin-right: auto;
 }
+
+/* ---------- share toggle ---------- */
+
+.share-row {
+  margin-bottom: 14px;
+}
+
+.share-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.share-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* ---------- map screen ---------- */
+
+#map-container {
+  height: calc(100vh - 160px);
+  border-radius: 16px;
+  overflow: hidden;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.map-hint {
+  max-width: 480px;
+  margin: 10px auto 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 12px;
+}
+
+.leaflet-popup-tip {
+  background: var(--surface);
+}

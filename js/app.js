@@ -454,6 +454,8 @@ function setupCategoryPicker() {
 function openAddSheet() {
   document.getElementById("input-amount").value = "";
   document.getElementById("input-note").value = "";
+  document.getElementById("input-place").value = "";
+  document.getElementById("input-share").checked = false;
   document.getElementById("input-date").value = dateKey(new Date());
   document.getElementById("input-currency").value = baseCurrency;
   formCategory = CATEGORIES[0].id;
@@ -465,9 +467,46 @@ function closeAddSheet() {
   document.getElementById("add-overlay").classList.add("hidden");
 }
 
+function getTelegramLocation() {
+  return new Promise((resolve) => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg?.LocationManager) {
+      resolve(null);
+      return;
+    }
+    tg.LocationManager.init(() => {
+      if (!tg.LocationManager.isLocationAvailable) {
+        resolve(null);
+        return;
+      }
+      tg.LocationManager.getLocation((location) => {
+        resolve(location ? { lat: location.latitude, lng: location.longitude } : null);
+      });
+    });
+  });
+}
+
 async function confirmAdd() {
   const amount = parseFloat(document.getElementById("input-amount").value);
   if (!amount || amount <= 0) return;
+
+  const shareChecked = document.getElementById("input-share").checked;
+  const placeName = document.getElementById("input-place").value.trim();
+
+  let lat = null;
+  let lng = null;
+  let sharedToMap = false;
+
+  if (shareChecked) {
+    const location = await getTelegramLocation();
+    if (location) {
+      lat = location.lat;
+      lng = location.lng;
+      sharedToMap = true;
+    } else {
+      alert("Не удалось получить геолокацию — трата сохранится без метки на карте");
+    }
+  }
 
   const { data, error } = await supabaseClient
     .from("expenses")
@@ -478,6 +517,10 @@ async function confirmAdd() {
       category: formCategory,
       date: document.getElementById("input-date").value,
       note: document.getElementById("input-note").value.trim(),
+      place_name: placeName || null,
+      lat,
+      lng,
+      shared_to_map: sharedToMap,
     })
     .select()
     .single();
@@ -653,6 +696,81 @@ function setupSettingsScreen() {
   });
 }
 
+async function loadSharedPins() {
+  const { data, error } = await supabaseClient
+    .from("expenses")
+    .select("*")
+    .eq("shared_to_map", true)
+    .not("lat", "is", null)
+    .not("lng", "is", null);
+  if (error) {
+    console.error(error);
+    return [];
+  }
+  return data;
+}
+
+function clusterPins(pins) {
+  const clusters = {};
+  pins.forEach((p) => {
+    const key = `${p.lat.toFixed(3)}:${p.lng.toFixed(3)}:${p.category}`;
+    if (!clusters[key]) {
+      clusters[key] = { lat: p.lat, lng: p.lng, category: p.category, placeNames: {}, amounts: [] };
+    }
+    clusters[key].amounts.push(convert(p.amount, p.currency, baseCurrency));
+    const name = p.place_name || "Без названия";
+    clusters[key].placeNames[name] = (clusters[key].placeNames[name] || 0) + 1;
+  });
+  return Object.values(clusters).map((c) => {
+    const topName = Object.entries(c.placeNames).sort((a, b) => b[1] - a[1])[0][0];
+    const avg = c.amounts.reduce((s, v) => s + v, 0) / c.amounts.length;
+    return { lat: c.lat, lng: c.lng, category: c.category, name: topName, avg, count: c.amounts.length };
+  });
+}
+
+let mapInstance = null;
+
+async function renderMapScreen() {
+  const pins = clusterPins(await loadSharedPins());
+
+  if (!mapInstance) {
+    mapInstance = L.map("map-container").setView([41.7, 44.5], 7);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap",
+    }).addTo(mapInstance);
+  } else {
+    mapInstance.eachLayer((layer) => {
+      if (layer instanceof L.Marker || layer instanceof L.CircleMarker) mapInstance.removeLayer(layer);
+    });
+  }
+
+  pins.forEach((p) => {
+    const color = CATEGORY_COLOR[p.category] || "#9aa0a6";
+    const marker = L.circleMarker([p.lat, p.lng], {
+      radius: 10,
+      color,
+      fillColor: color,
+      fillOpacity: 0.8,
+      weight: 2,
+    }).addTo(mapInstance);
+    marker.bindPopup(
+      `<b>${CATEGORY_ICON[p.category] || ""} ${escapeHtml(p.name)}</b><br>${formatMoney(p.avg, baseCurrency)} · ${p.count} ${p.count === 1 ? "отметка" : "отметок"}`
+    );
+  });
+
+  setTimeout(() => mapInstance.invalidateSize(), 200);
+}
+
+function setupMapScreen() {
+  document.getElementById("open-map").addEventListener("click", async () => {
+    document.getElementById("map-screen").classList.remove("hidden");
+    await renderMapScreen();
+  });
+  document.getElementById("map-back").addEventListener("click", () => {
+    document.getElementById("map-screen").classList.add("hidden");
+  });
+}
+
 async function init() {
   initTelegramWebApp();
   setupCurrencySelects();
@@ -660,6 +778,7 @@ async function init() {
   setupPeriodNav();
   setupCalendarScreen();
   setupSettingsScreen();
+  setupMapScreen();
   setupAddSheet();
 
   const [, , loadedSettings] = await Promise.all([
