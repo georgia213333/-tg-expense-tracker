@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Расходы</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header class="topbar">
+    <button id="prev-month" class="nav-btn">‹</button>
+    <div class="topbar__title">
+      <span id="month-label">Август 2026</span>
+    </div>
+    <button id="next-month" class="nav-btn">›</button>
+  </header>
+
+  <div class="summary">
+    <div class="summary__total" id="month-total">0.00</div>
+    <select id="base-currency" class="currency-select"></select>
+  </div>
+
+  <div class="calendar" id="calendar"></div>
+
+  <div class="chart-block">
+    <h2 class="block-title">По категориям</h2>
+    <div id="category-chart" class="category-chart"></div>
+  </div>
+
+  <div class="entries-block">
+    <h2 class="block-title" id="entries-title">Все траты</h2>
+    <div id="entries-list" class="entries-list"></div>
+  </div>
+
+</div>
+
+<button id="fab-add" class="fab">+</button>
+
+<div id="add-overlay" class="overlay hidden">
+  <div class="sheet">
+    <h2>Новая трата</h2>
+
+    <div class="field">
+      <label>Сумма</label>
+      <input id="input-amount" type="number" inputmode="decimal" placeholder="0.00" step="0.01">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Валюта</label>
+        <select id="input-currency"></select>
+      </div>
+      <div class="field">
+        <label>Дата</label>
+        <input id="input-date" type="date">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Категория</label>
+      <div id="category-picker" class="category-picker"></div>
+    </div>
+
+    <div class="field">
+      <label>Заметка (необязательно)</label>
+      <input id="input-note" type="text" placeholder="Например: обед в кафе">
+    </div>
+
+    <div class="sheet-actions">
+      <button id="cancel-add" class="btn btn--ghost">Отмена</button>
+      <button id="confirm-add" class="btn btn--primary">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
