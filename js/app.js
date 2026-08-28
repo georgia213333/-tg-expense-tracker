@@ -577,7 +577,7 @@ function applyTheme(theme) {
   }
 }
 
-let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false };
+let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false, language: "ru" };
 
 async function loadSettings() {
   const { data } = await supabaseClient
@@ -585,7 +585,15 @@ async function loadSettings() {
     .select("*")
     .eq("telegram_user_id", userId)
     .maybeSingle();
-  return data || { display_name: "", start_screen: "overview", theme: "auto", is_premium: false };
+  return (
+    data || {
+      display_name: "",
+      start_screen: "overview",
+      theme: "auto",
+      is_premium: false,
+      language: detectLanguage(),
+    }
+  );
 }
 
 async function saveSettings() {
@@ -594,6 +602,7 @@ async function saveSettings() {
     display_name: settings.display_name,
     start_screen: settings.start_screen,
     theme: settings.theme,
+    language: settings.language,
   });
 }
 
@@ -728,46 +737,84 @@ function clusterPins(pins) {
   });
 }
 
+const MAPTILER_KEY = "ot16oiPSCsaqLbDZr4Ty";
+
+function detectLanguage() {
+  const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
+  if (tgLang && ["ru", "en", "ka"].includes(tgLang)) return tgLang;
+  return "ru";
+}
+
+function applyMapLanguage(map, lang) {
+  const style = map.getStyle();
+  if (!style?.layers) return;
+  style.layers.forEach((layer) => {
+    if (layer.type === "symbol" && layer.layout && layer.layout["text-field"]) {
+      map.setLayoutProperty(layer.id, "text-field", ["coalesce", ["get", `name:${lang}`], ["get", "name"]]);
+    }
+  });
+}
+
 let mapInstance = null;
+let mapMarkers = [];
 
 async function renderMapScreen() {
   const pins = clusterPins(await loadSharedPins());
 
   if (!mapInstance) {
-    mapInstance = L.map("map-container").setView([41.7, 44.5], 7);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap",
-    }).addTo(mapInstance);
-  } else {
-    mapInstance.eachLayer((layer) => {
-      if (layer instanceof L.Marker || layer instanceof L.CircleMarker) mapInstance.removeLayer(layer);
+    mapInstance = new maplibregl.Map({
+      container: "map-container",
+      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`,
+      center: [44.5, 41.7],
+      zoom: 7,
     });
+    mapInstance.addControl(new maplibregl.NavigationControl(), "top-left");
+    mapInstance.on("load", () => applyMapLanguage(mapInstance, settings.language));
+  } else {
+    applyMapLanguage(mapInstance, settings.language);
   }
 
+  mapMarkers.forEach((m) => m.remove());
+  mapMarkers = [];
+
   pins.forEach((p) => {
-    const color = CATEGORY_COLOR[p.category] || "#9aa0a6";
-    const marker = L.circleMarker([p.lat, p.lng], {
-      radius: 10,
-      color,
-      fillColor: color,
-      fillOpacity: 0.8,
-      weight: 2,
-    }).addTo(mapInstance);
-    marker.bindPopup(
+    const el = document.createElement("div");
+    el.className = "map-pin";
+    el.style.background = CATEGORY_COLOR[p.category] || "#9aa0a6";
+    el.innerHTML = `<span>${CATEGORY_ICON[p.category] || ""}</span>`;
+
+    const popup = new maplibregl.Popup({ offset: 20 }).setHTML(
       `<b>${CATEGORY_ICON[p.category] || ""} ${escapeHtml(p.name)}</b><br>${formatMoney(p.avg, baseCurrency)} · ${p.count} ${p.count === 1 ? "отметка" : "отметок"}`
     );
+
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat([p.lng, p.lat])
+      .setPopup(popup)
+      .addTo(mapInstance);
+    mapMarkers.push(marker);
   });
 
-  setTimeout(() => mapInstance.invalidateSize(), 200);
+  setTimeout(() => mapInstance.resize(), 200);
+}
+
+function setMapLanguage(lang) {
+  settings.language = lang;
+  document.querySelectorAll(".map-lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === lang));
+  if (mapInstance) applyMapLanguage(mapInstance, lang);
+  saveSettings();
 }
 
 function setupMapScreen() {
   document.getElementById("open-map").addEventListener("click", async () => {
     document.getElementById("map-screen").classList.remove("hidden");
+    setMapLanguage(settings.language);
     await renderMapScreen();
   });
   document.getElementById("map-back").addEventListener("click", () => {
     document.getElementById("map-screen").classList.add("hidden");
+  });
+  document.querySelectorAll(".map-lang-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setMapLanguage(btn.dataset.lang));
   });
 }
 
@@ -787,6 +834,7 @@ async function init() {
     loadSettings(),
   ]);
   settings = loadedSettings;
+  settings.language = settings.language || detectLanguage();
 
   applyTheme(settings.theme);
   renderHeaderTitle();

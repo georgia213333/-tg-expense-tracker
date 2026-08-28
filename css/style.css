@@ -649,12 +649,58 @@ body {
   text-align: center;
 }
 
-.leaflet-popup-content-wrapper {
+.maplibregl-popup-content {
   background: var(--surface);
   color: var(--text);
   border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
 }
 
-.leaflet-popup-tip {
+.maplibregl-popup-tip {
+  border-top-color: var(--surface);
+  border-bottom-color: var(--surface);
+}
+
+.map-lang {
+  display: flex;
+  gap: 4px;
+}
+
+.map-lang-btn {
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms var(--ease-out), border-color 120ms ease, color 120ms ease;
+}
+
+.map-lang-btn:active {
+  transform: scale(0.93);
+}
+
+.map-lang-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.map-pin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.map-pin span {
+  transform: rotate(45deg);
+  font-size: 14px;
 }
