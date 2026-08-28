@@ -179,7 +179,7 @@ function renderDonut(totals, grandTotal) {
   const sortedCats = CATEGORY_ORDER.filter((id) => totals[id]).sort((a, b) => totals[b] - totals[a]);
   let cumulative = 0;
 
-  sortedCats.forEach((id) => {
+  sortedCats.forEach((id, index) => {
     const len = (totals[id] / grandTotal) * CIRC;
     const circle = document.createElementNS(SVG_NS, "circle");
     circle.setAttribute("cx", "100");
@@ -191,9 +191,11 @@ function renderDonut(totals, grandTotal) {
     circle.style.strokeDashoffset = String(-cumulative);
     svg.appendChild(circle);
 
-    requestAnimationFrame(() => {
-      circle.style.strokeDasharray = `${len} ${CIRC - len}`;
-    });
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        circle.style.strokeDasharray = `${len} ${CIRC - len}`;
+      });
+    }, index * 90);
 
     cumulative += len;
   });
@@ -499,11 +501,16 @@ function setupAddSheet() {
   });
 }
 
-function applyTelegramTheme() {
+function initTelegramWebApp() {
   const tg = window.Telegram?.WebApp;
   if (!tg) return;
   tg.ready();
   tg.expand();
+}
+
+function applyTelegramThemeParams() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg) return;
   const p = tg.themeParams || {};
   const root = document.documentElement.style;
   if (p.bg_color) root.setProperty("--bg", p.bg_color);
@@ -512,15 +519,114 @@ function applyTelegramTheme() {
   if (p.secondary_bg_color) root.setProperty("--surface", p.secondary_bg_color);
 }
 
+function clearInlineThemeVars() {
+  const root = document.documentElement.style;
+  ["--bg", "--text", "--text-dim", "--surface"].forEach((v) => root.removeProperty(v));
+}
+
+function applyTheme(theme) {
+  if (theme === "auto") {
+    document.documentElement.removeAttribute("data-theme");
+    applyTelegramThemeParams();
+  } else {
+    clearInlineThemeVars();
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+}
+
+let settings = { display_name: "", start_screen: "overview", theme: "auto" };
+
+async function loadSettings() {
+  const { data } = await supabaseClient
+    .from("user_settings")
+    .select("*")
+    .eq("telegram_user_id", userId)
+    .maybeSingle();
+  return data || { display_name: "", start_screen: "overview", theme: "auto" };
+}
+
+async function saveSettings() {
+  await supabaseClient.from("user_settings").upsert({
+    telegram_user_id: userId,
+    display_name: settings.display_name,
+    start_screen: settings.start_screen,
+    theme: settings.theme,
+  });
+}
+
+function renderHeaderTitle() {
+  document.getElementById("header-title").textContent = settings.display_name
+    ? `Привет, ${settings.display_name}`
+    : "Расходы";
+}
+
+function setSegmentedValue(containerId, value) {
+  document.querySelectorAll(`#${containerId} .period-tab`).forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === value);
+  });
+}
+
+function setupSettingsScreen() {
+  document.getElementById("open-settings").addEventListener("click", () => {
+    document.getElementById("settings-name").value = settings.display_name || "";
+    setSegmentedValue("settings-start-screen", settings.start_screen);
+    setSegmentedValue("settings-theme", settings.theme);
+    document.getElementById("settings-screen").classList.remove("hidden");
+  });
+
+  document.getElementById("settings-back").addEventListener("click", () => {
+    document.getElementById("settings-screen").classList.add("hidden");
+  });
+
+  document.getElementById("settings-name").addEventListener("change", async (e) => {
+    settings.display_name = e.target.value.trim();
+    renderHeaderTitle();
+    await saveSettings();
+  });
+
+  document.querySelectorAll("#settings-start-screen .period-tab").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      settings.start_screen = btn.dataset.value;
+      setSegmentedValue("settings-start-screen", settings.start_screen);
+      await saveSettings();
+    });
+  });
+
+  document.querySelectorAll("#settings-theme .period-tab").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      settings.theme = btn.dataset.value;
+      setSegmentedValue("settings-theme", settings.theme);
+      applyTheme(settings.theme);
+      await saveSettings();
+    });
+  });
+}
+
 async function init() {
-  applyTelegramTheme();
+  initTelegramWebApp();
   setupCurrencySelects();
   setupPeriodTabs();
   setupPeriodNav();
   setupCalendarScreen();
+  setupSettingsScreen();
   setupAddSheet();
-  await Promise.all([fetchRates(), loadEntries().then((data) => { entries = data; })]);
+
+  const [, , loadedSettings] = await Promise.all([
+    fetchRates(),
+    loadEntries().then((data) => { entries = data; }),
+    loadSettings(),
+  ]);
+  settings = loadedSettings;
+
+  applyTheme(settings.theme);
+  renderHeaderTitle();
   renderAll();
+
+  if (settings.start_screen === "calendar") {
+    calendarMonth = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth(), 1);
+    renderCalendarScreen();
+    document.getElementById("calendar-screen").classList.remove("hidden");
+  }
 }
 
 init();

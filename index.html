@@ -11,8 +11,11 @@
 <div id="app">
 
   <header class="app-header">
-    <span class="app-header__title">Расходы</span>
-    <button id="open-calendar" class="icon-btn">📅</button>
+    <span class="app-header__title" id="header-title">Расходы</span>
+    <div class="app-header__actions">
+      <button id="open-settings" class="icon-btn">⚙️</button>
+      <button id="open-calendar" class="icon-btn">📅</button>
+    </div>
   </header>
 
   <div class="period-tabs">
@@ -62,6 +65,36 @@
   <div class="entries-block">
     <h2 class="block-title" id="calendar-entries-title">Все траты за месяц</h2>
     <div id="calendar-entries-list" class="entries-list"></div>
+  </div>
+</div>
+
+<div id="settings-screen" class="screen hidden">
+  <header class="topbar">
+    <button id="settings-back" class="nav-btn">←</button>
+    <div class="topbar__title">Настройки</div>
+    <span class="nav-spacer"></span>
+  </header>
+
+  <div class="field">
+    <label>Имя</label>
+    <input id="settings-name" type="text" placeholder="Как к тебе обращаться">
+  </div>
+
+  <div class="field">
+    <label>Начальный экран</label>
+    <div class="period-tabs" id="settings-start-screen">
+      <button class="period-tab" data-value="overview">Обзор</button>
+      <button class="period-tab" data-value="calendar">Календарь</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Тема</label>
+    <div class="period-tabs" id="settings-theme">
+      <button class="period-tab" data-value="auto">Авто</button>
+      <button class="period-tab" data-value="dark">Тёмная</button>
+      <button class="period-tab" data-value="light">Светлая</button>
+    </div>
   </div>
 </div>
 
