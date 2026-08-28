@@ -1,21 +1,27 @@
 const CATEGORIES = [
-  { id: "groceries", label: "Продукты", icon: "🛒" },
-  { id: "restaurants", label: "Рестораны", icon: "🍽" },
-  { id: "delivery", label: "Доставка", icon: "🛵" },
-  { id: "transport", label: "Транспорт", icon: "🚕" },
-  { id: "fuel", label: "АЗС", icon: "⛽" },
-  { id: "home", label: "Жильё", icon: "🏠" },
-  { id: "fun", label: "Развлечения", icon: "🎮" },
-  { id: "health", label: "Здоровье", icon: "💊" },
-  { id: "shopping", label: "Покупки", icon: "🛍" },
-  { id: "other", label: "Прочее", icon: "✨" },
+  { id: "groceries", label: "Продукты", icon: "🛒", color: "#f2a65a" },
+  { id: "restaurants", label: "Рестораны", icon: "🍽", color: "#e85d75" },
+  { id: "delivery", label: "Доставка", icon: "🛵", color: "#f7d060" },
+  { id: "transport", label: "Транспорт", icon: "🚕", color: "#6fcf97" },
+  { id: "fuel", label: "АЗС", icon: "⛽", color: "#56ccf2" },
+  { id: "home", label: "Жильё", icon: "🏠", color: "#bb86fc" },
+  { id: "fun", label: "Развлечения", icon: "🎮", color: "#ff8c69" },
+  { id: "health", label: "Здоровье", icon: "💊", color: "#4dd0e1" },
+  { id: "shopping", label: "Покупки", icon: "🛍", color: "#ffb74d" },
+  { id: "other", label: "Прочее", icon: "✨", color: "#9aa0a6" },
 ];
+
+const CATEGORY_ORDER = CATEGORIES.map((c) => c.id);
+const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.label]));
+const CATEGORY_ICON = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.icon]));
+const CATEGORY_COLOR = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.color]));
 
 const CURRENCIES = ["GEL", "USD", "THB", "EUR"];
 const CURRENCY_SYMBOLS = { GEL: "₾", USD: "$", THB: "฿", EUR: "€" };
 const FALLBACK_RATES_USD = { USD: 1, GEL: 2.7, THB: 34, EUR: 0.92 };
 const MONTH_NAMES = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const DOW = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 const SUPABASE_URL = "https://ajygagwlupjmbffayeir.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cp1xhLHSdYKR8RAtq4Zi_A_uSPbahMg";
@@ -35,8 +41,10 @@ function resolveUserId() {
 const userId = resolveUserId();
 
 let entries = [];
-let currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-let selectedDate = null;
+let periodType = "month";
+let periodAnchor = new Date();
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarSelectedDate = null;
 let baseCurrency = localStorage.getItem("base_currency") || "USD";
 let ratesUSD = { ...FALLBACK_RATES_USD };
 let formCategory = CATEGORIES[0].id;
@@ -83,23 +91,208 @@ function dateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
-function entriesForMonth(month) {
+function entriesInRange(start, end) {
+  return entries.filter((e) => e.date >= start && e.date <= end);
+}
+
+function getPeriodRange(type, anchor) {
+  if (type === "week") {
+    const dow = (anchor.getDay() + 6) % 7;
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - dow);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    return { start: dateKey(start), end: dateKey(end) };
+  }
+  if (type === "year") {
+    return { start: `${anchor.getFullYear()}-01-01`, end: `${anchor.getFullYear()}-12-31` };
+  }
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  return { start: dateKey(start), end: dateKey(end) };
+}
+
+function shiftPeriod(dir) {
+  if (periodType === "week") {
+    periodAnchor = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth(), periodAnchor.getDate() + dir * 7);
+  } else if (periodType === "year") {
+    periodAnchor = new Date(periodAnchor.getFullYear() + dir, periodAnchor.getMonth(), 1);
+  } else {
+    periodAnchor = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth() + dir, 1);
+  }
+  renderMain();
+}
+
+function renderPeriodLabel() {
+  const label = document.getElementById("period-label");
+  if (periodType === "year") {
+    label.textContent = String(periodAnchor.getFullYear());
+    return;
+  }
+  if (periodType === "week") {
+    const { start, end } = getPeriodRange("week", periodAnchor);
+    const [, sm, sd] = start.split("-");
+    const [, em, ed] = end.split("-");
+    label.textContent =
+      sm === em
+        ? `${sd}–${ed} ${MONTH_NAMES[Number(sm) - 1].slice(0, 3)}`
+        : `${sd} ${MONTH_NAMES[Number(sm) - 1].slice(0, 3)} – ${ed} ${MONTH_NAMES[Number(em) - 1].slice(0, 3)}`;
+    return;
+  }
+  label.textContent = `${MONTH_NAMES[periodAnchor.getMonth()]} ${periodAnchor.getFullYear()}`;
+}
+
+function periodTotals() {
+  const { start, end } = getPeriodRange(periodType, periodAnchor);
+  const periodEntries = entriesInRange(start, end);
+  const totals = {};
+  let grandTotal = 0;
+  periodEntries.forEach((e) => {
+    const v = convert(e.amount, e.currency, baseCurrency);
+    totals[e.category] = (totals[e.category] || 0) + v;
+    grandTotal += v;
+  });
+  return { periodEntries, totals, grandTotal };
+}
+
+function renderSummary(grandTotal) {
+  document.getElementById("period-total").textContent = formatMoney(grandTotal, baseCurrency);
+}
+
+function renderDonut(totals, grandTotal) {
+  const svg = document.getElementById("donut-svg");
+  const centerLabel = document.getElementById("donut-center-label");
+  const R = 80;
+  const CIRC = 2 * Math.PI * R;
+
+  svg.innerHTML = "";
+  const track = document.createElementNS(SVG_NS, "circle");
+  track.setAttribute("cx", "100");
+  track.setAttribute("cy", "100");
+  track.setAttribute("r", String(R));
+  track.setAttribute("class", "donut-track");
+  svg.appendChild(track);
+
+  if (grandTotal === 0) {
+    centerLabel.textContent = "Нет трат за этот период";
+    return;
+  }
+
+  const sortedCats = CATEGORY_ORDER.filter((id) => totals[id]).sort((a, b) => totals[b] - totals[a]);
+  let cumulative = 0;
+
+  sortedCats.forEach((id) => {
+    const len = (totals[id] / grandTotal) * CIRC;
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", "100");
+    circle.setAttribute("cy", "100");
+    circle.setAttribute("r", String(R));
+    circle.setAttribute("class", "donut-segment");
+    circle.style.stroke = CATEGORY_COLOR[id];
+    circle.style.strokeDasharray = `0 ${CIRC}`;
+    circle.style.strokeDashoffset = String(-cumulative);
+    svg.appendChild(circle);
+
+    requestAnimationFrame(() => {
+      circle.style.strokeDasharray = `${len} ${CIRC - len}`;
+    });
+
+    cumulative += len;
+  });
+
+  const count = periodTotals().periodEntries.length;
+  centerLabel.textContent = `${count} ${pluralizeTrata(count)}`;
+}
+
+function pluralizeTrata(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "трата";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "траты";
+  return "трат";
+}
+
+function renderCategoryPills(totals) {
+  const wrap = document.getElementById("category-pills");
+  const cats = CATEGORY_ORDER.filter((id) => totals[id]).sort((a, b) => totals[b] - totals[a]);
+
+  if (!cats.length) {
+    wrap.innerHTML = '<div class="empty-hint">Пока нет трат за этот период</div>';
+    return;
+  }
+
+  wrap.innerHTML = cats
+    .map(
+      (id) => `
+    <div class="pill">
+      <span class="pill__icon" style="background:${CATEGORY_COLOR[id]}33;color:${CATEGORY_COLOR[id]}">${CATEGORY_ICON[id]}</span>
+      <span class="pill__label">${CATEGORY_LABEL[id]}</span>
+      <span class="pill__amount">${formatMoney(totals[id], baseCurrency)}</span>
+    </div>`
+    )
+    .join("");
+}
+
+function entryRowHtml(e) {
+  return `
+    <div class="entry">
+      <div class="entry__icon">${CATEGORY_ICON[e.category] || "✨"}</div>
+      <div class="entry__body">
+        <div class="entry__category">${CATEGORY_LABEL[e.category] || "Прочее"}</div>
+        ${e.note ? `<div class="entry__note">${escapeHtml(e.note)}</div>` : ""}
+      </div>
+      <div class="entry__amount">${formatMoney(e.amount, e.currency)}</div>
+      <button class="entry__delete" data-id="${e.id}">✕</button>
+    </div>`;
+}
+
+function bindDeleteButtons(container) {
+  container.querySelectorAll(".entry__delete").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = Number(btn.dataset.id);
+      const { error } = await supabaseClient.from("expenses").delete().eq("id", id);
+      if (error) {
+        console.error(error);
+        return;
+      }
+      entries = entries.filter((e) => e.id !== id);
+      renderAll();
+    });
+  });
+}
+
+function renderPeriodEntries(periodEntries) {
+  const list = document.getElementById("entries-list");
+  const items = periodEntries.slice().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-hint">Ничего не найдено</div>';
+    return;
+  }
+
+  list.innerHTML = items.map(entryRowHtml).join("");
+  bindDeleteButtons(list);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderMain() {
+  renderPeriodLabel();
+  const { periodEntries, totals, grandTotal } = periodTotals();
+  renderSummary(grandTotal);
+  renderDonut(totals, grandTotal);
+  renderCategoryPills(totals);
+  renderPeriodEntries(periodEntries);
+}
+
+function calendarEntriesForMonth(month) {
   const prefix = dateKey(month).slice(0, 7);
   return entries.filter((e) => e.date.startsWith(prefix));
 }
 
-function renderMonthLabel() {
-  document.getElementById("month-label").textContent =
-    `${MONTH_NAMES[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`;
-}
-
-function renderSummary() {
-  const monthEntries = entriesForMonth(currentMonth);
-  const total = monthEntries.reduce((sum, e) => sum + convert(e.amount, e.currency, baseCurrency), 0);
-  document.getElementById("month-total").textContent = formatMoney(total, baseCurrency);
-}
-
-function renderCalendar() {
+function renderCalendarGrid() {
   const cal = document.getElementById("calendar");
   cal.innerHTML = "";
 
@@ -110,15 +303,15 @@ function renderCalendar() {
     cal.appendChild(el);
   });
 
-  const y = currentMonth.getFullYear();
-  const m = currentMonth.getMonth();
+  const y = calendarMonth.getFullYear();
+  const m = calendarMonth.getMonth();
   const firstDay = new Date(y, m, 1);
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const todayKey = dateKey(new Date());
 
   const spendByDay = {};
-  entriesForMonth(currentMonth).forEach((e) => {
+  calendarEntriesForMonth(calendarMonth).forEach((e) => {
     spendByDay[e.date] = (spendByDay[e.date] || 0) + convert(e.amount, e.currency, baseCurrency);
   });
 
@@ -135,55 +328,24 @@ function renderCalendar() {
     el.className = "cal-day";
     if (spendByDay[key]) el.classList.add("has-spend");
     if (key === todayKey) el.classList.add("today");
-    if (key === selectedDate) el.classList.add("selected");
+    if (key === calendarSelectedDate) el.classList.add("selected");
     el.innerHTML = `${day}<span class="dot"></span>`;
     el.addEventListener("click", () => {
-      selectedDate = selectedDate === key ? null : key;
-      renderCalendar();
-      renderEntries();
+      calendarSelectedDate = calendarSelectedDate === key ? null : key;
+      renderCalendarScreen();
     });
     cal.appendChild(el);
   }
 }
 
-function renderCategoryChart() {
-  const wrap = document.getElementById("category-chart");
-  const monthEntries = entriesForMonth(currentMonth);
+function renderCalendarEntriesList() {
+  const list = document.getElementById("calendar-entries-list");
+  const title = document.getElementById("calendar-entries-title");
+  let items = calendarEntriesForMonth(calendarMonth);
 
-  if (!monthEntries.length) {
-    wrap.innerHTML = '<div class="empty-hint">Пока нет трат в этом месяце</div>';
-    return;
-  }
-
-  const totals = {};
-  monthEntries.forEach((e) => {
-    totals[e.category] = (totals[e.category] || 0) + convert(e.amount, e.currency, baseCurrency);
-  });
-
-  const max = Math.max(...Object.values(totals));
-
-  wrap.innerHTML = "";
-  CATEGORIES.filter((c) => totals[c.id]).sort((a, b) => totals[b.id] - totals[a.id]).forEach((c) => {
-    const row = document.createElement("div");
-    row.className = "category-row";
-    const pct = (totals[c.id] / max) * 100;
-    row.innerHTML = `
-      <div class="category-row__label">${c.icon} ${c.label}</div>
-      <div class="category-row__bar-wrap"><div class="category-row__bar" style="width:${pct}%"></div></div>
-      <div class="category-row__amount">${formatMoney(totals[c.id], baseCurrency)}</div>
-    `;
-    wrap.appendChild(row);
-  });
-}
-
-function renderEntries() {
-  const list = document.getElementById("entries-list");
-  const title = document.getElementById("entries-title");
-  let items = entriesForMonth(currentMonth);
-
-  if (selectedDate) {
-    items = items.filter((e) => e.date === selectedDate);
-    title.textContent = "Траты за " + selectedDate.split("-").reverse().join(".");
+  if (calendarSelectedDate) {
+    items = items.filter((e) => e.date === calendarSelectedDate);
+    title.textContent = "Траты за " + calendarSelectedDate.split("-").reverse().join(".");
   } else {
     title.textContent = "Все траты за месяц";
   }
@@ -195,49 +357,58 @@ function renderEntries() {
     return;
   }
 
-  list.innerHTML = "";
-  items.forEach((e) => {
-    const cat = CATEGORIES.find((c) => c.id === e.category) || CATEGORIES[CATEGORIES.length - 1];
-    const row = document.createElement("div");
-    row.className = "entry";
-    row.innerHTML = `
-      <div class="entry__icon">${cat.icon}</div>
-      <div class="entry__body">
-        <div class="entry__category">${cat.label}</div>
-        ${e.note ? `<div class="entry__note">${escapeHtml(e.note)}</div>` : ""}
-      </div>
-      <div class="entry__amount">${formatMoney(e.amount, e.currency)}</div>
-      <button class="entry__delete" data-id="${e.id}">✕</button>
-    `;
-    list.appendChild(row);
-  });
+  list.innerHTML = items.map(entryRowHtml).join("");
+  bindDeleteButtons(list);
+}
 
-  list.querySelectorAll(".entry__delete").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = Number(btn.dataset.id);
-      const { error } = await supabaseClient.from("expenses").delete().eq("id", id);
-      if (error) {
-        console.error(error);
-        return;
-      }
-      entries = entries.filter((e) => e.id !== id);
-      renderAll();
+function renderCalendarScreen() {
+  document.getElementById("calendar-month-label").textContent =
+    `${MONTH_NAMES[calendarMonth.getMonth()]} ${calendarMonth.getFullYear()}`;
+  renderCalendarGrid();
+  renderCalendarEntriesList();
+}
+
+function renderAll() {
+  renderMain();
+  renderCalendarScreen();
+}
+
+function setupPeriodTabs() {
+  document.querySelectorAll(".period-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      periodType = tab.dataset.period;
+      document.querySelectorAll(".period-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      renderMain();
     });
   });
 }
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+function setupPeriodNav() {
+  document.getElementById("prev-period").addEventListener("click", () => shiftPeriod(-1));
+  document.getElementById("next-period").addEventListener("click", () => shiftPeriod(1));
 }
 
-function renderAll() {
-  renderMonthLabel();
-  renderSummary();
-  renderCalendar();
-  renderCategoryChart();
-  renderEntries();
+function setupCalendarScreen() {
+  document.getElementById("open-calendar").addEventListener("click", () => {
+    calendarMonth = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth(), 1);
+    calendarSelectedDate = null;
+    renderCalendarScreen();
+    document.getElementById("calendar-screen").classList.remove("hidden");
+  });
+  document.getElementById("close-calendar").addEventListener("click", () => {
+    document.getElementById("calendar-screen").classList.add("hidden");
+  });
+  document.getElementById("prev-cal-month").addEventListener("click", () => {
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+    calendarSelectedDate = null;
+    renderCalendarScreen();
+  });
+  document.getElementById("next-cal-month").addEventListener("click", () => {
+    calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+    calendarSelectedDate = null;
+    renderCalendarScreen();
+  });
 }
 
 function setupCurrencySelects() {
@@ -319,17 +490,7 @@ async function confirmAdd() {
   renderAll();
 }
 
-function setupNav() {
-  document.getElementById("prev-month").addEventListener("click", () => {
-    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
-    selectedDate = null;
-    renderAll();
-  });
-  document.getElementById("next-month").addEventListener("click", () => {
-    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
-    selectedDate = null;
-    renderAll();
-  });
+function setupAddSheet() {
   document.getElementById("fab-add").addEventListener("click", openAddSheet);
   document.getElementById("cancel-add").addEventListener("click", closeAddSheet);
   document.getElementById("confirm-add").addEventListener("click", confirmAdd);
@@ -354,7 +515,10 @@ function applyTelegramTheme() {
 async function init() {
   applyTelegramTheme();
   setupCurrencySelects();
-  setupNav();
+  setupPeriodTabs();
+  setupPeriodNav();
+  setupCalendarScreen();
+  setupAddSheet();
   await Promise.all([fetchRates(), loadEntries().then((data) => { entries = data; })]);
   renderAll();
 }

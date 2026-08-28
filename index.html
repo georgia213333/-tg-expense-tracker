@@ -10,31 +10,59 @@
 
 <div id="app">
 
-  <header class="topbar">
-    <button id="prev-month" class="nav-btn">‹</button>
-    <div class="topbar__title">
-      <span id="month-label">Август 2026</span>
-    </div>
-    <button id="next-month" class="nav-btn">›</button>
+  <header class="app-header">
+    <span class="app-header__title">Расходы</span>
+    <button id="open-calendar" class="icon-btn">📅</button>
   </header>
 
+  <div class="period-tabs">
+    <button class="period-tab" data-period="week">Нед</button>
+    <button class="period-tab active" data-period="month">Мес</button>
+    <button class="period-tab" data-period="year">Год</button>
+  </div>
+
+  <div class="period-nav">
+    <button id="prev-period" class="nav-btn">‹</button>
+    <span id="period-label" class="period-nav__label">Август 2026</span>
+    <button id="next-period" class="nav-btn">›</button>
+  </div>
+
   <div class="summary">
-    <div class="summary__total" id="month-total">0.00</div>
+    <div class="summary__total" id="period-total">0.00</div>
     <select id="base-currency" class="currency-select"></select>
   </div>
 
-  <div class="calendar" id="calendar"></div>
-
-  <div class="chart-block">
-    <h2 class="block-title">По категориям</h2>
-    <div id="category-chart" class="category-chart"></div>
+  <div class="donut-wrap">
+    <svg id="donut-svg" class="donut" viewBox="0 0 200 200"></svg>
+    <div class="donut-center" id="donut-center-label"></div>
   </div>
 
+  <div class="category-pills" id="category-pills"></div>
+
   <div class="entries-block">
-    <h2 class="block-title" id="entries-title">Все траты</h2>
+    <h2 class="block-title">Последние траты</h2>
     <div id="entries-list" class="entries-list"></div>
   </div>
 
+</div>
+
+<div id="calendar-screen" class="screen hidden">
+  <header class="topbar">
+    <button id="prev-cal-month" class="nav-btn">‹</button>
+    <div class="topbar__title">
+      <span id="calendar-month-label">Август 2026</span>
+    </div>
+    <button id="next-cal-month" class="nav-btn">›</button>
+  </header>
+
+  <div class="calendar" id="calendar"></div>
+
+  <div class="entries-block">
+    <h2 class="block-title" id="calendar-entries-title">Все траты за месяц</h2>
+    <div id="calendar-entries-list" class="entries-list"></div>
+  </div>
+
+  <button id="close-calendar" class="btn btn--ghost btn--block">Закрыть календарь</button>
 </div>
 
 <button id="fab-add" class="fab">+</button>
