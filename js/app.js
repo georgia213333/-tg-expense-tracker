@@ -622,7 +622,6 @@ function setupSettingsScreen() {
     document.getElementById("settings-name").value = settings.display_name || "";
     setSegmentedValue("settings-start-screen", settings.start_screen);
     setSegmentedValue("settings-theme", settings.theme);
-    renderPremiumSection();
     document.getElementById("settings-screen").classList.remove("hidden");
   });
 
