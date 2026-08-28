@@ -12,7 +12,10 @@
 <div id="app">
 
   <header class="app-header">
-    <span class="app-header__title" id="header-title">Расходы</span>
+    <div class="app-header__identity">
+      <div class="avatar" id="header-avatar"></div>
+      <span class="app-header__title" id="header-title">Расходы</span>
+    </div>
     <div class="app-header__actions">
       <button id="open-settings" class="icon-btn">⚙️</button>
       <button id="open-map" class="icon-btn">🗺</button>
@@ -76,6 +79,14 @@
     <div class="topbar__title" data-i18n="settings_title">Настройки</div>
     <span class="nav-spacer"></span>
   </header>
+
+  <div class="avatar-picker">
+    <div class="avatar" id="settings-avatar"></div>
+    <div>
+      <button id="change-avatar-btn" class="btn btn--ghost btn--small" data-i18n="change_photo">Сменить фото</button>
+      <input id="avatar-file-input" type="file" accept="image/*" style="display:none">
+    </div>
+  </div>
 
   <div class="field">
     <label data-i18n="name_label">Имя</label>

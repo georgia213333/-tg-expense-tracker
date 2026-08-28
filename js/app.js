@@ -550,7 +550,7 @@ function applyTheme(theme) {
   }
 }
 
-let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false, language: "ru", map_language: "ru" };
+let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false, language: "ru", map_language: "ru", avatar_url: null };
 
 async function loadSettings() {
   const { data } = await supabaseClient
@@ -566,6 +566,7 @@ async function loadSettings() {
       is_premium: false,
       language: detectInterfaceLanguage(),
       map_language: detectMapLanguage(),
+      avatar_url: null,
     }
   );
 }
@@ -578,7 +579,74 @@ async function saveSettings() {
     theme: settings.theme,
     language: settings.language,
     map_language: settings.map_language,
+    avatar_url: settings.avatar_url,
   });
+}
+
+function renderAvatarEl(el) {
+  if (!el) return;
+  if (settings.avatar_url) {
+    el.style.backgroundImage = `url("${settings.avatar_url}")`;
+    el.textContent = "";
+  } else {
+    el.style.backgroundImage = "none";
+    const name = (settings.display_name || "").trim();
+    el.textContent = name ? name.charAt(0).toUpperCase() : "🙂";
+  }
+}
+
+function renderAvatars() {
+  renderAvatarEl(document.getElementById("header-avatar"));
+  renderAvatarEl(document.getElementById("settings-avatar"));
+}
+
+function resizeImageFile(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url);
+          blob ? resolve(blob) : reject(new Error("toBlob failed"));
+        },
+        "image/jpeg",
+        0.85
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("image load failed"));
+    };
+    img.src = url;
+  });
+}
+
+async function uploadAvatar(file) {
+  try {
+    const blob = await resizeImageFile(file, 256);
+    const path = `${userId}.jpg`;
+    const { error: uploadError } = await supabaseClient.storage
+      .from("avatars")
+      .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+    if (uploadError) {
+      console.error(uploadError);
+      return;
+    }
+    const { data } = supabaseClient.storage.from("avatars").getPublicUrl(path);
+    settings.avatar_url = `${data.publicUrl}?t=${Date.now()}`;
+    renderAvatars();
+    await saveSettings();
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function renderPremiumSection() {
@@ -650,6 +718,7 @@ function setupSettingsScreen() {
     setSegmentedValue("settings-start-screen", settings.start_screen);
     setSegmentedValue("settings-theme", settings.theme);
     setSegmentedValue("settings-language", settings.language);
+    renderAvatars();
     document.getElementById("settings-screen").classList.remove("hidden");
   });
 
@@ -660,7 +729,22 @@ function setupSettingsScreen() {
   document.getElementById("settings-name").addEventListener("change", async (e) => {
     settings.display_name = e.target.value.trim();
     renderHeaderTitle();
+    renderAvatars();
     await saveSettings();
+  });
+
+  document.getElementById("change-avatar-btn").addEventListener("click", () => {
+    document.getElementById("avatar-file-input").click();
+  });
+
+  document.getElementById("settings-avatar").addEventListener("click", () => {
+    document.getElementById("avatar-file-input").click();
+  });
+
+  document.getElementById("avatar-file-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) uploadAvatar(file);
+    e.target.value = "";
   });
 
   document.querySelectorAll("#settings-start-screen .period-tab").forEach((btn) => {
@@ -824,6 +908,7 @@ async function init() {
   applyTheme(settings.theme);
   applyI18nStatic();
   renderHeaderTitle();
+  renderAvatars();
   renderAll();
 
   if (settings.start_screen === "calendar") {
