@@ -48,11 +48,13 @@
 
 <div id="calendar-screen" class="screen hidden">
   <header class="topbar">
-    <button id="prev-cal-month" class="nav-btn">‹</button>
-    <div class="topbar__title">
-      <span id="calendar-month-label">Август 2026</span>
+    <button id="calendar-back" class="nav-btn">←</button>
+    <div class="month-nav">
+      <button id="prev-cal-month" class="nav-btn">‹</button>
+      <span id="calendar-month-label" class="month-nav__label">Август 2026</span>
+      <button id="next-cal-month" class="nav-btn">›</button>
     </div>
-    <button id="next-cal-month" class="nav-btn">›</button>
+    <span class="nav-spacer"></span>
   </header>
 
   <div class="calendar" id="calendar"></div>
@@ -61,8 +63,6 @@
     <h2 class="block-title" id="calendar-entries-title">Все траты за месяц</h2>
     <div id="calendar-entries-list" class="entries-list"></div>
   </div>
-
-  <button id="close-calendar" class="btn btn--ghost btn--block">Закрыть календарь</button>
 </div>
 
 <button id="fab-add" class="fab">+</button>

@@ -396,7 +396,7 @@ function setupCalendarScreen() {
     renderCalendarScreen();
     document.getElementById("calendar-screen").classList.remove("hidden");
   });
-  document.getElementById("close-calendar").addEventListener("click", () => {
+  document.getElementById("calendar-back").addEventListener("click", () => {
     document.getElementById("calendar-screen").classList.add("hidden");
   });
   document.getElementById("prev-cal-month").addEventListener("click", () => {

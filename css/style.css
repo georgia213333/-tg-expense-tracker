@@ -90,6 +90,24 @@ body {
   background: var(--surface-2);
 }
 
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-nav__label {
+  font-size: 17px;
+  font-weight: 700;
+  text-transform: capitalize;
+  min-width: 130px;
+  text-align: center;
+}
+
+.nav-spacer {
+  width: 36px;
+}
+
 /* ---------- period tabs / nav ---------- */
 
 .period-tabs {
