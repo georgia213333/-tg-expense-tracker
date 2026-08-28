@@ -534,7 +534,7 @@ function applyTheme(theme) {
   }
 }
 
-let settings = { display_name: "", start_screen: "overview", theme: "auto" };
+let settings = { display_name: "", start_screen: "overview", theme: "auto", is_premium: false };
 
 async function loadSettings() {
   const { data } = await supabaseClient
@@ -542,7 +542,7 @@ async function loadSettings() {
     .select("*")
     .eq("telegram_user_id", userId)
     .maybeSingle();
-  return data || { display_name: "", start_screen: "overview", theme: "auto" };
+  return data || { display_name: "", start_screen: "overview", theme: "auto", is_premium: false };
 }
 
 async function saveSettings() {
@@ -552,6 +552,57 @@ async function saveSettings() {
     start_screen: settings.start_screen,
     theme: settings.theme,
   });
+}
+
+function renderPremiumSection() {
+  const wrap = document.getElementById("premium-section");
+  if (settings.is_premium) {
+    wrap.innerHTML = `
+      <div class="empty-hint">✅ Премиум активен</div>
+      <button id="export-csv-btn" class="btn btn--primary" style="margin-top:8px;width:100%">Экспортировать в CSV</button>
+    `;
+    document.getElementById("export-csv-btn").addEventListener("click", exportCsv);
+  } else {
+    wrap.innerHTML = `<button id="buy-premium-btn" class="btn btn--primary" style="width:100%">💎 Экспорт в CSV — 1 ⭐</button>`;
+    document.getElementById("buy-premium-btn").addEventListener("click", buyPremium);
+  }
+}
+
+async function buyPremium() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg?.openInvoice) {
+    alert("Оплата доступна только внутри Telegram");
+    return;
+  }
+
+  const res = await fetch("/api/create-invoice", { method: "POST" });
+  const data = await res.json();
+  if (!data.link) {
+    alert("Не получилось создать счёт на оплату");
+    return;
+  }
+
+  tg.openInvoice(data.link, (status) => {
+    if (status === "paid") {
+      settings.is_premium = true;
+      renderPremiumSection();
+    }
+  });
+}
+
+function exportCsv() {
+  const rows = [["Дата", "Категория", "Сумма", "Валюта", "Заметка"]];
+  entries.forEach((e) => {
+    rows.push([e.date, CATEGORY_LABEL[e.category] || e.category, e.amount, e.currency, e.note || ""]);
+  });
+  const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "expenses.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderHeaderTitle() {
@@ -571,6 +622,7 @@ function setupSettingsScreen() {
     document.getElementById("settings-name").value = settings.display_name || "";
     setSegmentedValue("settings-start-screen", settings.start_screen);
     setSegmentedValue("settings-theme", settings.theme);
+    renderPremiumSection();
     document.getElementById("settings-screen").classList.remove("hidden");
   });
 

@@ -110,6 +110,16 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const preCheckout = req.body?.pre_checkout_query;
+  if (preCheckout) {
+    await telegramApi("answerPreCheckoutQuery", {
+      pre_checkout_query_id: preCheckout.id,
+      ok: true,
+    });
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   const callback = req.body?.callback_query;
   if (callback) {
     const [, expenseId, categoryId] = callback.data.split(":");
@@ -146,7 +156,25 @@ module.exports = async function handler(req, res) {
   }
 
   const message = req.body?.message;
-  if (!message?.text) {
+  if (!message) {
+    res.status(200).json({ ok: true });
+    return;
+  }
+
+  if (message.successful_payment) {
+    const payload = message.successful_payment.invoice_payload;
+    if (payload === "premium_csv_export") {
+      await supabase.from("user_settings").upsert({
+        telegram_user_id: message.from.id,
+        is_premium: true,
+      });
+      await sendMessage(message.chat.id, "✅ Спасибо за покупку! Открой мини-апп — экспорт в CSV уже доступен в настройках.");
+    }
+    res.status(200).json({ ok: true });
+    return;
+  }
+
+  if (!message.text) {
     res.status(200).json({ ok: true });
     return;
   }
