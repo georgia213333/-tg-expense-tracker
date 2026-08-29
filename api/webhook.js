@@ -66,6 +66,62 @@ function parseExpenseText(text) {
   return { amount, currency, category, note };
 }
 
+async function recognizeReceipt(fileUrl) {
+  const params = new URLSearchParams({
+    apikey: process.env.OCR_SPACE_API_KEY || "helloworld",
+    url: fileUrl,
+    language: "eng",
+    OCREngine: "2",
+    scale: "true",
+  });
+  const res = await fetch(`https://api.ocr.space/parse/imageurl?${params.toString()}`);
+  const data = await res.json();
+  if (!res.ok || data.IsErroredOnProcessing) return null;
+  return data.ParsedResults?.[0]?.ParsedText || null;
+}
+
+function parseReceiptText(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const moneyRe = /\d+[.,]\d{2}/g;
+
+  let amount = null;
+  const totalLineRe = /total|итого|сумма|к оплате|amount due|\bsum\b/i;
+  for (const line of lines) {
+    if (totalLineRe.test(line)) {
+      const matches = line.match(moneyRe);
+      if (matches) {
+        amount = parseFloat(matches[matches.length - 1].replace(",", "."));
+        break;
+      }
+    }
+  }
+  if (amount === null) {
+    const allMatches = text.match(moneyRe);
+    if (allMatches) {
+      amount = Math.max(...allMatches.map((m) => parseFloat(m.replace(",", "."))));
+    }
+  }
+  if (!amount) return null;
+
+  const lower = text.toLowerCase();
+  let currency = "GEL";
+  if (/(usd|\$)/.test(lower)) currency = "USD";
+  else if (/(thb|฿|baht)/.test(lower)) currency = "THB";
+  else if (/(eur|€)/.test(lower)) currency = "EUR";
+
+  let category = "other";
+  for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (words.some((w) => lower.includes(w))) {
+      category = cat;
+      break;
+    }
+  }
+
+  const placeName = lines.find((l) => l.length >= 3 && !/^[\d.,\s]+$/.test(l)) || null;
+
+  return { amount, currency, category, placeName };
+}
+
 function todayInTbilisi() {
   const shifted = new Date(Date.now() + 4 * 60 * 60 * 1000);
   return shifted.toISOString().slice(0, 10);
@@ -174,6 +230,56 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  if (message.photo && message.photo.length) {
+    const chatId = message.chat.id;
+    const largestPhoto = message.photo[message.photo.length - 1];
+    const fileRes = await telegramApi("getFile", { file_id: largestPhoto.file_id });
+    const filePath = fileRes?.result?.file_path;
+
+    if (!filePath) {
+      await sendMessage(chatId, "Не получилось загрузить фото, попробуй ещё раз.");
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
+    const ocrText = await recognizeReceipt(fileUrl);
+    const parsed = ocrText ? parseReceiptText(ocrText) : null;
+
+    if (!parsed) {
+      await sendMessage(chatId, "Не смог распознать сумму на чеке. Впиши трату текстом, например: 12 лари кофе");
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    const { data: expense, error } = await supabase
+      .from("expenses")
+      .insert({
+        telegram_user_id: message.from.id,
+        amount: parsed.amount,
+        currency: parsed.currency,
+        category: parsed.category,
+        date: todayInTbilisi(),
+        place_name: parsed.placeName,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      await sendMessage(chatId, "Не получилось сохранить трату, попробуй ещё раз.");
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    await sendMessage(
+      chatId,
+      `${confirmationText(expense)}\n\n(распознано по фото чека — если сумма не та, удали трату в приложении и добавь вручную)`,
+      categoryKeyboard(expense.id)
+    );
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   if (!message.text) {
     res.status(200).json({ ok: true });
     return;
@@ -185,7 +291,7 @@ module.exports = async function handler(req, res) {
   if (text === "/start") {
     await sendMessage(
       chatId,
-      "Привет! Пиши траты в свободной форме, например:\n\n12 лари кофе\n\nВалюта не обязательна — по умолчанию лари. Если категория окажется неправильной — под сообщением будут кнопки, чтобы поправить. Открыть полное приложение — кнопка меню внизу."
+      "Привет! Пиши траты в свободной форме, например:\n\n12 лари кофе\n\nИли отправь фото чека — попробую сам распознать сумму.\n\nВалюта не обязательна — по умолчанию лари. Если категория окажется неправильной — под сообщением будут кнопки, чтобы поправить. Открыть полное приложение — кнопка меню внизу."
     );
     res.status(200).json({ ok: true });
     return;
